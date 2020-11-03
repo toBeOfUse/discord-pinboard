@@ -23,7 +23,9 @@ class PinsClient(discord.Client):
             "sender_avatar": str(m.author.avatar_url_as(static_format="png")),
             "text": m.clean_content,
             "time": m.created_at,
-            "attachments": [a.url for a in m.attachments]
+            "attachments": [
+                {"id": a.id, "filename": a.filename, "url": a.url, "message_id": m.id} for a in m.attachments
+            ]
         }
 
     async def get_pins(self, channel_index):

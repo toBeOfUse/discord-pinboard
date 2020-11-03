@@ -1,5 +1,6 @@
 import sqlite3
 
+
 class ChannelDB:
     def __init__(self, channelID):
         self.conn = sqlite3.connect(channelID + ".db")
@@ -29,7 +30,7 @@ class ChannelDB:
         ''')
 
     def add_messages(self, messages):
-        users = [(x, ) for x in set(x["sender_id"] for x in messages)]
+        users = [(x,) for x in set(x["sender_id"] for x in messages)]
         self.conn.executemany("insert or ignore into users (user_id) values (?);", users)
         sighting_ids = {}
         for user in users:
@@ -47,6 +48,13 @@ class ChannelDB:
             "insert or ignore into messages (message_id, contents, timestamp, sighting_id) values (?, ?, ?, ?)",
             [(m["id"], m["text"], m["time"], sighting_ids[m["id"]]) for m in messages]
         )
+        self.conn.executemany(
+            "insert or ignore into attachments (attachment_id, filename, message_id) values (?, ?, ?)",
+            [(att["id"], att["filename"], att["message_id"]) for att in
+             (a for agroup in (m["attachments"] for m in messages if m["attachments"]) for a in agroup)]
+        )
+
 
 if __name__ == "__main__":
     cdb = ChannelDB("test")
+    cdb.add_messages()
