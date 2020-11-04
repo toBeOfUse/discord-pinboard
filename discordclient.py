@@ -9,12 +9,7 @@ class PinsClient(discord.Client):
         asyncio.create_task(self.start(token, bot=False))
 
     async def on_connect(self):
-        async for message in self.private_channels[2].history(limit=1000):
-            if message.id == 773607188526006272:
-                print(message)
-                break
         self.connected.set_result("connected")
-
 
     def get_dm_channel_list(self):
         return [str(c) for c in self.private_channels]

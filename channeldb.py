@@ -1,5 +1,7 @@
 import sqlite3
-import datetime
+
+import channeldb_test_data
+import os
 
 
 class ChannelDB:
@@ -19,8 +21,8 @@ class ChannelDB:
             message_id integer primary key,
             contents text,
             timestamp text not null,
-            sighting_id integer not null,
-            currently_pinned integer,
+            sighting_id integer,
+            archival integer,
             foreign key (sighting_id) references user_sightings (sighting_id)
         );
         create table if not exists attachments (
@@ -32,7 +34,7 @@ class ChannelDB:
         ''')
         self.conn.commit()
 
-    def add_messages(self, messages, currently_pinned=True):
+    def add_messages(self, messages, archival=False):
         users = [(x,) for x in set(x["sender_id"] for x in messages)]
         self.conn.executemany("insert or ignore into users (user_id) values (?);", users)
         sighting_ids = {}
@@ -50,9 +52,9 @@ class ChannelDB:
             sighting_ids[user[0]] = sighting_id
         self.conn.executemany(
             '''insert or ignore into messages 
-                (message_id, contents, timestamp, sighting_id, currently_pinned)
-                values (?, ?, ?, ?);''',
-            [(m["id"], m["text"], m["time"], sighting_ids[m["sender_id"]], int(currently_pinned)) for m in messages]
+                (message_id, contents, timestamp, sighting_id, archival)
+                values (?, ?, ?, ?, ?);''',
+            [(m["id"], m["text"], m["time"], sighting_ids[m["sender_id"]], int(archival)) for m in messages]
         )
         self.conn.executemany(
             "insert or ignore into attachments (attachment_id, filename, message_id) values (?, ?, ?);",
@@ -60,6 +62,9 @@ class ChannelDB:
              (a for agroup in (m["attachments"] for m in messages if m["attachments"]) for a in agroup)]
         )
         self.conn.commit()
+
+    def close(self):
+        self.conn.close()
 
     def dump(self):
         out = "users:\n"
@@ -79,35 +84,10 @@ class ChannelDB:
 
 if __name__ == "__main__":
     cdb = ChannelDB("test")
-    cdb.add_messages([{'attachments': [{'filename': 'unknown.png',
-                                        'id': 770583153134796800,
-                                        'message_id': 770583153332060190,
-                                        'url': 'https://cdn.discordapp.com/attachments/681936370242945038/770583153134796800/unknown.png'}],
-                       'id': 770583153332060190,
-                       'sender_avatar': 'https://cdn.discordapp.com/avatars/402326044872409100/85299428167603eee033d330c307f0c2.png?size=1024',
-                       'sender_id': 402326044872409100,
-                       'sender_name': 'GiantPredatoryMollusk',
-                       'text': '',
-                       'time': datetime.datetime(2020, 10, 27, 9, 42, 20, 497000)},
-                      {'attachments': [],
-                       'id': 769443495755644958,
-                       'sender_avatar': 'https://cdn.discordapp.com/avatars/338261686014181377/ce561e6a9c1bf43921cca5dc93765f20.png?size=1024',
-                       'sender_id': 338261686014181377,
-                       'sender_name': 'Cassie',
-                       'text': 'u have no idea how much I mean to me',
-                       'time': datetime.datetime(2020, 10, 24, 6, 13, 44, 957000)},
-                      {'attachments': [],
-                       'id': 769440108717015073,
-                       'sender_avatar': 'https://cdn.discordapp.com/avatars/338261686014181377/ce561e6a9c1bf43921cca5dc93765f20.png?size=1024',
-                       'sender_id': 338261686014181377,
-                       'sender_name': 'Cassie',
-                       'text': "I did rocking horse and they were just like 'fucking a horse'???",
-                       'time': datetime.datetime(2020, 10, 24, 6, 0, 17, 424000)},
-                      {'attachments': [],
-                       'id': 769440035107373076,
-                       'sender_avatar': 'https://cdn.discordapp.com/avatars/338261686014181377/ce561e6a9c1bf43921cca5dc93765f20.png?size=1024',
-                       'sender_id': 338261686014181377,
-                       'sender_name': 'Cassie',
-                       'text': "I'm Too Drink for charades ??????????",
-                       'time': datetime.datetime(2020, 10, 24, 5, 59, 59, 874000)}])
+    cdb.add_messages(channeldb_test_data.simplemessages)
+    cdb.add_messages(channeldb_test_data.avatarchange)
+    cdb.add_messages(channeldb_test_data.avatarandusernamechange)
+    cdb.add_messages(channeldb_test_data.oldmessages, archival=True)
     print(cdb.dump())
+    cdb.close()
+    os.remove("test.db")
