@@ -9,7 +9,12 @@ class PinsClient(discord.Client):
         asyncio.create_task(self.start(token, bot=False))
 
     async def on_connect(self):
+        async for message in self.private_channels[2].history(limit=1000):
+            if message.id == 773607188526006272:
+                print(message)
+                break
         self.connected.set_result("connected")
+
 
     def get_dm_channel_list(self):
         return [str(c) for c in self.private_channels]
@@ -32,6 +37,17 @@ class PinsClient(discord.Client):
         pins = await self.private_channels[channel_index].pins()
         return [self.message_to_dict(m) for m in pins]
 
+    async def get_old_pins(self, channel_index):
+        old_pin_ids = set()
+        pins = []
+        async for message in self.private_channels[channel_index].history():
+            if message.type == discord.MessageType.pins_add:
+                old_pin_ids.add(message.reference.message_id)
+            elif message.type == discord.MessageType.default and message.id in old_pin_ids and not message.pinned:
+                pins.append(self.message_to_dict(message))
+        return pins
+
+
 async def test():
     with open("token.txt") as tokenfile:
         token = tokenfile.read()
@@ -50,7 +66,11 @@ async def test():
             except:
                 pass
             print("that is a not a good number try again")
+        print("current pins:")
         pprint(await pc.get_pins(i))
+        print("\narchive:")
+        pprint(await pc.get_old_pins(i))
+
 
 if __name__ == "__main__":
     asyncio.run(test())
