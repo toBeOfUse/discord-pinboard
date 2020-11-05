@@ -3,8 +3,9 @@ import asyncio
 from pprint import pprint
 
 class PinsClient(discord.Client):
-    def __init__(self, token):
+    def __init__(self, token, status_report=print):
         discord.Client.__init__(self)
+        self.set_status = status_report
         self.connected = asyncio.get_event_loop().create_future()
         asyncio.create_task(self.start(token, bot=False))
 
@@ -29,17 +30,25 @@ class PinsClient(discord.Client):
         }
 
     async def get_pins(self, channel_index):
+        self.set_status("loading pins...")
         pins = await self.private_channels[channel_index].pins()
+        self.set_status("processing pins...")
         return [self.message_to_dict(m) for m in pins]
 
     async def get_old_pins(self, channel_index):
         old_pin_ids = set()
         pins = []
+        scanned = 0
+        found = 0
         async for message in self.private_channels[channel_index].history():
+            scanned += 1
             if message.type == discord.MessageType.pins_add:
                 old_pin_ids.add(message.reference.message_id)
             elif message.type == discord.MessageType.default and message.id in old_pin_ids and not message.pinned:
                 pins.append(self.message_to_dict(message))
+                found += 1
+            if scanned % 1000 == 0:
+                self.set_status("scanned "+str(scanned)+" messages, found "+str(found)+" formerly pinned messages")
         return pins
 
 
@@ -58,12 +67,12 @@ async def test():
                 if 0 < target <= len(dmchannels):
                     i = target - 1
                     break
-            except:
+            except ValueError:
                 pass
             print("that is a not a good number try again")
-        print("current pins:")
+        print("fetching current pins...")
         pprint(await pc.get_pins(i))
-        print("\narchive:")
+        print("\nfetching archival pins...")
         pprint(await pc.get_old_pins(i))
 
 
