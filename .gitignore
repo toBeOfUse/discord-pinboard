@@ -1,5 +1,8 @@
 token.txt
 *.db
+*-journal
+test/*
+avatars/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

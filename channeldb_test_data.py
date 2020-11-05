@@ -3,7 +3,7 @@ import datetime
 simplemessages = [
     {'attachments': [{'filename': 'unknown.png',
                       'id': 770583153134796800,
-                      'message_id': 770583153332060190,
+                      'message_id': 10,
                       'url': 'https://cdn.discordapp.com/attachments/681936370242945038/770583153134796800/unknown.png'}],
      'id': 10,
      'sender_avatar': 'https://cdn.discordapp.com/avatars/402326044872409100/85299428167603eee033d330c307f0c2.png?size=1024',
@@ -72,7 +72,17 @@ avatarandusernamechange = [
      'sender_id': 338261686014181377,
      'sender_name': 'Cassie',
      'text': "normal message (still new avatar)",
-     'time': datetime.datetime(2020, 11, 5, 10, 0, 17, 424000)}
+     'time': datetime.datetime(2020, 11, 5, 10, 0, 17, 424000)},
+    {'attachments': [{'filename': 'dan.gif',
+                   'id': 773681339043020830,
+                   'message_id': 19,
+                   'url': 'https://cdn.discordapp.com/attachments/773674142360010764/773681339043020830/dan.gif'}],
+     'id': 19,
+     'sender_avatar': 'https://cdn.discordapp.com/avatars/adifferentnewone',
+     'sender_id': 402326044872409100,
+     'sender_name': 'SmolPredatoryMollusk',
+     'text': 'attachment message',
+     'time': datetime.datetime(2020, 11, 6, 9, 42, 20, 497000)}
 ]
 
 oldmessages = [
@@ -83,7 +93,10 @@ oldmessages = [
      'sender_name': 'SmolPredatoryMollusk',
      'text': 'unpinned thing',
      'time': datetime.datetime(2020, 11, 5, 11, 42, 20, 497000)},
-    {'attachments': [],
+    {'attachments': [{'filename': 'url1.jpg',
+                   'id': 772743393788428298,
+                   'message_id': 6,
+                   'url': 'https://cdn.discordapp.com/attachments/681936370242945038/772743393788428298/url1.jpg'}],
      'id': 6,
      'sender_avatar': 'https://cdn.discordapp.com/avatars/anewone.png',
      'sender_id': 338261686014181377,
