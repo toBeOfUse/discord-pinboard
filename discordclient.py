@@ -35,21 +35,30 @@ class PinsClient(discord.Client):
         self.set_status("processing pins...")
         return [self.message_to_dict(m) for m in pins]
 
-    async def get_old_pins(self, channel_index):
-        old_pin_ids = set()
+    async def old_pins_search(self, channel_index, extra_ids=()):
+        found_pin_ids = set()
+        extra_pin_ids = set(extra_ids)
         pins = []
+        extra_pins = []
         scanned = 0
         found = 0
-        async for message in self.private_channels[channel_index].history():
+        async for message in self.private_channels[channel_index].history(limit=None):
             scanned += 1
             if message.type == discord.MessageType.pins_add:
-                old_pin_ids.add(message.reference.message_id)
-            elif message.type == discord.MessageType.default and message.id in old_pin_ids and not message.pinned:
+                found_pin_ids.add(message.reference.message_id)
+            elif message.id in extra_pin_ids:
+                pins.append(self.message_to_dict(message))
+            elif message.type == discord.MessageType.default and message.id in found_pin_ids and not message.pinned:
                 pins.append(self.message_to_dict(message))
                 found += 1
             if scanned % 1000 == 0:
                 self.set_status("scanned "+str(scanned)+" messages, found "+str(found)+" formerly pinned messages")
-        return pins
+        self.set_status(str(len(found_pin_ids)-found)+" formerly pinned messages not found; probably deleted")
+        if not extra_ids:
+            return pins
+        else:
+            self.set_status(str(len(extra_pins))+" found out of "+str(len(extra_ids))+" requested")
+            return pins, extra_pins
 
 
 async def test():
@@ -58,9 +67,8 @@ async def test():
         pc = PinsClient(token)
         await pc.connected
         dmchannels = pc.get_dm_channel_list()
-        i = -1
-        for i in range(len(dmchannels)):
-            print(str(i+1)+". " + str(dmchannels[i]))
+        for j in range(len(dmchannels)):
+            print(str(j+1)+". " + str(dmchannels[j]))
         while True:
             try:
                 target = int(input("pick channel plz: "))
@@ -73,7 +81,7 @@ async def test():
         print("fetching current pins...")
         pprint(await pc.get_pins(i))
         print("\nfetching archival pins...")
-        pprint(await pc.get_old_pins(i))
+        pprint(await pc.old_pins_search(i))
 
 
 if __name__ == "__main__":
