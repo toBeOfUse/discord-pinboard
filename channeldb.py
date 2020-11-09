@@ -4,8 +4,18 @@ import os
 import asyncio
 from urllib.parse import urlparse
 from pathlib import Path
+from pprint import PrettyPrinter, pprint, pformat
 
 import channeldb_test_data
+
+PrettyPrinter._dispatch[bytes.__repr__] = \
+    lambda self, object, stream, indent, allowance, context, level: stream.write("~bytes~")
+
+def print_row(row):
+    pprint(tuple(row), compact=True, width=120)
+
+def str_row(row):
+    return pformat(tuple(row), compact=True, width=200)
 
 
 class ChannelDB:
@@ -13,6 +23,7 @@ class ChannelDB:
         self.channel = channelID
         self.session = aiohttp.ClientSession()
         self.conn = sqlite3.connect(channelID + ".db")
+        self.conn.row_factory = sqlite3.Row
         self.conn.executescript('''
         create table if not exists users (user_id integer primary key);
         create table if not exists user_snapshots (
@@ -20,8 +31,8 @@ class ChannelDB:
             user_id integer not null,
             name text not null,
             avatar_url text not null,
-            avatar_filename text not null,
-            foreign key (user_id) references users (user_id)
+            foreign key (user_id) references users (user_id),
+            unique(user_id, name, avatar_url)
         );
         create table if not exists messages (
             message_id integer primary key,
@@ -38,8 +49,27 @@ class ChannelDB:
             message_id integer not null,
             foreign key (message_id) references messages (message_id)
         );
+        create table if not exists avatars (
+            avatar_url text primary key,
+            avatar blob not null
+        );
         ''')
         self.conn.commit()
+
+    # saves an avatar into the avatars table if necessary
+    async def save_avatar(self, url):
+        if not self.conn.execute("select 1 from avatars where avatar_url=?;", (url,)).fetchone():
+            self.conn.execute("insert into avatars (avatar_url, avatar) values (?, 'placeholder')", (url, ))
+            async with self.session.get(url) as resp:
+                avatar = await resp.read()
+                self.conn.execute("update avatars set avatar=? where avatar_url=?", (avatar, url))
+
+    # saves an attachment into ./channel_id/attachment_id/filename and returns a future for the dl
+    def save_attachment(self, channel_id, attachment_id, filename, url):
+        path = Path.cwd() / str(channel_id) / str(attachment_id)
+        if not path.exists():
+            path.mkdir(parents=True)
+        return self.save_thing(url, path / filename)
 
     async def save_thing(self, url, path):
         async with self.session.get(url) as resp:
@@ -50,28 +80,8 @@ class ChannelDB:
                         break
                     fd.write(chunk)
 
-    # saves an avatar into the avatars folder if necessary and returns a future for the dl and its filename
-    def save_avatar(self, url):
-        avatar_filename = Path(urlparse(url).path).name
-        avatar_path = Path.cwd() / "avatars"
-        avatar_path.mkdir(parents=True, exist_ok=True)
-        avatar_path /= avatar_filename
-        if not Path(avatar_path).exists():
-            return self.save_thing(url, avatar_path), avatar_filename
-        else:
-            future = asyncio.get_event_loop().create_future()
-            future.set_result("no dl needed")
-            return future, avatar_filename
-
-    # saves an attachment into ./channel_id/attachment_id/filename and returns a future for the dl
-    def save_attachment(self, channel_id, attachment_id, filename, url):
-        path = Path.cwd() / str(channel_id) / str(attachment_id)
-        if not path.exists():
-            path.mkdir(parents=True)
-        return self.save_thing(url, path / filename)
-
     async def add_messages(self, messages, archival=False):
-        # list of futures representing remote resource-saving operations (for asyncio.gather)
+        # list of futures representing asset-retrieval operations (for asyncio.gather)
         dlqueue = []
         cur = self.conn.cursor()
         # maps user ids onto the ids of the most recent snapshot of that user; used to link messages to snapshots
@@ -81,26 +91,23 @@ class ChannelDB:
         for user in users:
             snapshot = next(x for x in messages if x["sender_id"] == user[0])
             cur.execute(
-                '''select snapshot_id, name, avatar_url from user_snapshots 
-                where user_id=? 
-                order by snapshot_id desc
+                '''select snapshot_id from user_snapshots 
+                where user_id=? and name=? and avatar_url=?
                 limit 1;''',
-                user
+                (snapshot["sender_id"], snapshot["sender_name"], snapshot["sender_avatar"])
             )
-            last_snapshot = cur.fetchone()
-            # if the most recent snapshot of this user is different from how they currently look (or there is no last
-            # snapshot) add a snapshot of them to the database and save their current avatar if we don't already have it
-            if not last_snapshot or last_snapshot[1:3] != (snapshot["sender_name"], snapshot["sender_avatar"]):
-                dl, avatar_filename = self.save_avatar(snapshot["sender_avatar"])
-                dlqueue.append(dl)
+            matching_snapshot = cur.fetchone()
+            # we need the id of the snapshot that represents the current state of this user, whether we are just
+            # inserting the snapshot (first case handled) or it is already there (second case)
+            if not matching_snapshot:
+                dlqueue.append(self.save_avatar(snapshot["sender_avatar"]))
                 cur.execute(
-                    "insert into user_snapshots (user_id, name, avatar_url, avatar_filename) values (?, ?, ?, ?);",
-                    (snapshot["sender_id"], snapshot["sender_name"], snapshot["sender_avatar"], avatar_filename)
+                    "insert into user_snapshots (user_id, name, avatar_url) values (?, ?, ?);",
+                    (snapshot["sender_id"], snapshot["sender_name"], snapshot["sender_avatar"])
                 )
                 snapshot_id = cur.lastrowid
-            # otherwise, the messages logically belong to the most recently saved snapshot for this user
             else:
-                snapshot_id = last_snapshot[0]
+                snapshot_id = matching_snapshot["snapshot_id"]
             snapshot_ids[user[0]] = snapshot_id
         cur.executemany(
             # messages we already have are ignored bc their primary keys already exist, preventing their insertion
@@ -127,23 +134,36 @@ class ChannelDB:
         await asyncio.gather(*dlqueue)
         self.conn.commit()
 
-    def close(self):
+    def get_json(self):
+        cur = self.conn.cursor()
+        users = cur.execute("select * from users;").fetchall()
+        user_dict = {}
+        for user in users:
+            snapshots = cur.execute("select (name, avatar_url) from user_snapshots where user_id=?;", user).fetchall()
+
+    async def close(self):
         self.conn.close()
-        self.session.close()
+        await self.session.close()
 
     def dump(self):
         out = "users:\n"
         for user in self.conn.execute("select * from users;"):
-            out += str(user) + "\n"
+            out += str_row(user) + "\n"
+        out += "\navatars:\n"
+        for avatar in self.conn.execute("select * from avatars;"):
+            out += str_row(avatar) + "\n"
         out += "\nsnapshots:\n"
         for snapshot in self.conn.execute("select * from user_snapshots;"):
-            out += str(snapshot) + "\n"
+            out += str_row(snapshot) + "\n"
         out += "\nmessages:\n"
-        for message in self.conn.execute("select * from messages;"):
-            out += str(message) + "\n"
+        for message in self.conn.execute(
+                '''select timestamp, name, avatar_url, contents, archival from messages
+                left join user_snapshots using(snapshot_id);'''
+        ):
+            out += str_row(message) + "\n"
         out += "\nattachments:\n"
         for attachment in self.conn.execute("select * from attachments;"):
-            out += str(attachment) + "\n"
+            out += str_row(attachment) + "\n"
         return out
 
 
@@ -154,7 +174,7 @@ async def test():
     await cdb.add_messages(channeldb_test_data.avatarandusernamechange)
     await cdb.add_messages(channeldb_test_data.oldmessages, archival=True)
     print(cdb.dump())
-    cdb.close()
+    await cdb.close()
     os.remove("test.db")
 
 if __name__ == "__main__":

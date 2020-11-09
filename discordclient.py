@@ -2,6 +2,7 @@ import discord
 import asyncio
 from pprint import pprint
 
+
 class PinsClient(discord.Client):
     def __init__(self, token, status_report=print):
         discord.Client.__init__(self)
@@ -21,7 +22,7 @@ class PinsClient(discord.Client):
             "id": m.id,
             "sender_name": m.author.name,
             "sender_id": m.author.id,
-            "sender_avatar": str(m.author.avatar_url_as(static_format="png")),
+            "sender_avatar": str(m.author.avatar_url_as(static_format="jpg", size=512)),
             "text": m.clean_content,
             "time": m.created_at,
             "attachments": [
