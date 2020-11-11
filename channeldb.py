@@ -84,7 +84,7 @@ class ChannelDB:
                         break
                     fd.write(chunk)
 
-    async def add_messages(self, messages, archival=False):
+    async def add_messages(self, messages, save_attachments, archival=False):
         # list of futures representing asset-retrieval operations (for asyncio.gather)
         dlqueue = []
         cur = self.conn.cursor()
@@ -131,10 +131,11 @@ class ChannelDB:
                     "insert into attachments (attachment_id, filename, url, message_id) values (?, ?, ?, ?);",
                     (attachment["id"], attachment["filename"], attachment["url"], attachment["message_id"])
                 )
-                print("saving attachment " + attachment["filename"])
-                dlqueue.append(
-                    self.save_attachment(self.channel, attachment["id"], attachment["filename"], attachment["url"])
-                )
+                if save_attachments:
+                    print("saving attachment " + attachment["filename"])
+                    dlqueue.append(
+                        self.save_attachment(self.channel, attachment["id"], attachment["filename"], attachment["url"])
+                    )
         await asyncio.gather(*dlqueue)
         self.conn.commit()
 
