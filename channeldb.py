@@ -2,20 +2,24 @@ import sqlite3
 import aiohttp
 import os
 import asyncio
-from urllib.parse import urlparse
+import mimetypes
+import base64
 from pathlib import Path
-from pprint import PrettyPrinter, pprint, pformat
+from pprint import PrettyPrinter, pformat, pprint
+import json
 
 import channeldb_test_data
 
 PrettyPrinter._dispatch[bytes.__repr__] = \
     lambda self, object, stream, indent, allowance, context, level: stream.write("~bytes~")
 
-def print_row(row):
-    pprint(tuple(row), compact=True, width=120)
 
 def str_row(row):
-    return pformat(tuple(row), compact=True, width=200)
+    return pformat(tuple(row), compact=True, width=200)[0:300]
+
+
+def print_row(row):
+    print(str_row(row))
 
 
 class ChannelDB:
@@ -59,7 +63,7 @@ class ChannelDB:
     # saves an avatar into the avatars table if necessary
     async def save_avatar(self, url):
         if not self.conn.execute("select 1 from avatars where avatar_url=?;", (url,)).fetchone():
-            self.conn.execute("insert into avatars (avatar_url, avatar) values (?, 'placeholder')", (url, ))
+            self.conn.execute("insert into avatars (avatar_url, avatar) values (?, 'placeholder')", (url,))
             async with self.session.get(url) as resp:
                 avatar = await resp.read()
                 self.conn.execute("update avatars set avatar=? where avatar_url=?", (avatar, url))
@@ -75,7 +79,7 @@ class ChannelDB:
         async with self.session.get(url) as resp:
             with open(path, 'wb') as fd:
                 while True:
-                    chunk = await resp.content.read(1024*500)
+                    chunk = await resp.content.read(1024 * 500)
                     if not chunk:
                         break
                     fd.write(chunk)
@@ -127,19 +131,55 @@ class ChannelDB:
                     "insert into attachments (attachment_id, filename, url, message_id) values (?, ?, ?, ?);",
                     (attachment["id"], attachment["filename"], attachment["url"], attachment["message_id"])
                 )
-                print("saving attachment "+attachment["filename"])
+                print("saving attachment " + attachment["filename"])
                 dlqueue.append(
                     self.save_attachment(self.channel, attachment["id"], attachment["filename"], attachment["url"])
                 )
         await asyncio.gather(*dlqueue)
         self.conn.commit()
 
-    def get_json(self):
+    def get_dict(self):
         cur = self.conn.cursor()
-        users = cur.execute("select * from users;").fetchall()
-        user_dict = {}
-        for user in users:
-            snapshots = cur.execute("select (name, avatar_url) from user_snapshots where user_id=?;", user).fetchall()
+        snapshot_dict = {}
+        cur.execute("select user_id from users;")
+        for user in cur:
+            snapshots = self.conn.execute(
+                "select snapshot_id, user_id, name, avatar_url from user_snapshots where user_id=?;", (user[0],)
+            ).fetchall()
+            snapshot_dict[user["user_id"]] = [dict(x) for x in snapshots]
+        avatar_dicts = []
+        cur.execute("select avatar_url, avatar from avatars;")
+        for avatar in cur:
+            mime = mimetypes.guess_type(avatar["avatar_url"])
+            avatar_dicts.append(
+                {avatar["avatar_url"]:
+                     "data:" + mime[0] + ";base64," + str(base64.b64encode(avatar["avatar"]), encoding="utf-8")}
+            )
+        message_dicts = []
+        archived_message_dicts = []
+        cur.execute("select message_id, contents, timestamp, snapshot_id, archival from messages;")
+        for message in cur:
+            dm = (dict(message))
+            user_id = self.conn.execute(
+                "select user_id from user_snapshots where snapshot_id=? limit 1;", (message["snapshot_id"],)
+            ).fetchone()[0]
+            dm["user_id"] = user_id
+            dm["attachments"] = []
+            for attachment in self.conn.execute(
+                    "select url, filename, attachment_id from attachments where message_id=?;", (message["message_id"],)
+            ):
+                dm["attachments"].append(dict(attachment))
+            if dm["archival"]:
+                archived_message_dicts.append(dm)
+                del archived_message_dicts[-1]["archival"]
+            else:
+                message_dicts.append(dm)
+                del message_dicts[-1]["archival"]
+        return {"messages": message_dicts, "archived_messages": archived_message_dicts, "avatars": avatar_dicts,
+                "users": snapshot_dict}
+
+    def get_json(self):
+        return json.dumps(self.get_dict())
 
     async def close(self):
         self.conn.close()
@@ -168,14 +208,20 @@ class ChannelDB:
 
 
 async def test():
-    cdb = ChannelDB("test")
-    await cdb.add_messages(channeldb_test_data.simplemessages)
-    await cdb.add_messages(channeldb_test_data.avatarchange)
-    await cdb.add_messages(channeldb_test_data.avatarandusernamechange)
-    await cdb.add_messages(channeldb_test_data.oldmessages, archival=True)
-    print(cdb.dump())
-    await cdb.close()
+    try:
+        cdb = ChannelDB("test")
+        await cdb.add_messages(channeldb_test_data.simplemessages)
+        await cdb.add_messages(channeldb_test_data.avatarchange)
+        await cdb.add_messages(channeldb_test_data.avatarandusernamechange)
+        await cdb.add_messages(channeldb_test_data.oldmessages, archival=True)
+        print(cdb.dump())
+        pprint(cdb.get_dict(), width=200)
+        await cdb.close()
+    except Exception as e:
+        print(e)
+        pass
     os.remove("test.db")
+
 
 if __name__ == "__main__":
     asyncio.run(test())
