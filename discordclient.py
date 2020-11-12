@@ -47,18 +47,24 @@ class PinsClient(discord.Client):
             scanned += 1
             if message.type == discord.MessageType.pins_add:
                 found_pin_ids.add(message.reference.message_id)
-            elif message.id in extra_pin_ids:
+            elif message.type == discord.MessageType.default and message.id in extra_pin_ids:
                 pins.append(self.message_to_dict(message))
-            elif message.type == discord.MessageType.default and message.id in found_pin_ids and not message.pinned:
-                pins.append(self.message_to_dict(message))
-                found += 1
+            elif message.type == discord.MessageType.default and message.id in found_pin_ids:
+                if not message.pinned:
+                    found += 1
+                    pins.append(self.message_to_dict(message))
+                else:
+                    found_pin_ids.remove(message.id)
             if scanned % 1000 == 0:
-                self.set_status("scanned "+str(scanned)+" messages, found "+str(found)+" formerly pinned messages")
-        self.set_status(str(len(found_pin_ids)-found)+" formerly pinned messages not found; probably deleted")
+                self.set_status("scanned "+str(scanned)+" messages, found "+str(found)+" formerly pinned message(s)")
+        self.set_status("scanned " + str(scanned) + " messages, found " + str(found) + " formerly pinned message(s)")
+        missed = len(found_pin_ids) - found
+        if missed > 0:
+            self.set_status(str(missed)+" formerly pinned message(s) not found; probably deleted")
         if not extra_ids:
             return pins
         else:
-            self.set_status(str(len(extra_pins))+" found out of "+str(len(extra_ids))+" requested")
+            self.set_status(str(len(extra_pins))+" extra messages found out of "+str(len(extra_ids))+" requested")
             return pins, extra_pins
 
 
