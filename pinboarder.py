@@ -61,7 +61,7 @@ async def main():
         index = matching_channels[0][0]
     slug = slugify.slugify(channels[index])
     pins = await client.get_pins(index)
-    db = channeldb.ChannelDB(slug)
+    db = channeldb.ChannelDB(slug, client.get_dm_channel_id(index))
     await db.add_messages(pins, args.backup_attachments)
     if args.deep_scan:
         old_pins = await client.old_pins_search(index)

@@ -24,10 +24,11 @@ def print_row(row):
 
 
 class ChannelDB:
-    def __init__(self, channelID):
-        self.channel = channelID
+    def __init__(self, channel_name, channel_id):
+        self.channel_name = channel_name
+        self.channel_id = channel_id
         self.session = aiohttp.ClientSession()
-        self.conn = sqlite3.connect(channelID + ".db")
+        self.conn = sqlite3.connect(channel_id + ".db")
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript('''
         create table if not exists users (user_id integer primary key);
@@ -69,9 +70,9 @@ class ChannelDB:
                 avatar = await resp.read()
                 self.conn.execute("update avatars set avatar=? where avatar_url=?", (avatar, url))
 
-    # saves an attachment into ./backup/channel_id/attachment_id/filename and returns a future for the dl
-    def save_attachment(self, channel_id, attachment_id, filename, url):
-        path = Path.cwd() / "backup" / str(channel_id) / str(attachment_id)
+    # saves an attachment into ./backup/channel_name/attachment_id/filename and returns a future for the dl
+    def save_attachment(self, attachment_id, filename, url):
+        path = Path.cwd() / "backup" / self.channel_name / str(attachment_id)
         if not path.exists():
             path.mkdir(parents=True)
         return self.save_thing(url, path / filename)
@@ -135,7 +136,7 @@ class ChannelDB:
                 if save_attachments:
                     print("saving attachment " + attachment["filename"])
                     dlqueue.append(
-                        self.save_attachment(self.channel, attachment["id"], attachment["filename"], attachment["url"])
+                        self.save_attachment(attachment["id"], attachment["filename"], attachment["url"])
                     )
         await asyncio.gather(*dlqueue)
         self.conn.commit()
@@ -178,7 +179,7 @@ class ChannelDB:
                 message_dicts.append(dm)
                 del message_dicts[-1]["archival"]
         return {"messages": message_dicts, "archived_messages": archived_message_dicts, "avatars": avatar_dicts,
-                "users": snapshot_dict}
+                "users": snapshot_dict, "channel_id": self.channel_id}
 
     def get_json(self):
         return json.dumps(self.get_dict())

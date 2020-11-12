@@ -16,6 +16,9 @@ class PinsClient(discord.Client):
     def get_dm_channel_list(self):
         return [str(c) for c in self.private_channels]
 
+    def get_dm_channel_id(self, index):
+        return self.private_channels[index].id
+
     @staticmethod
     def message_to_dict(m):
         return {
