@@ -170,6 +170,7 @@ class ChannelDB:
                 "select user_id from user_snapshots where snapshot_id=? limit 1;", (message["snapshot_id"],)
             ).fetchone()[0]
             dm["user_id"] = str(user_id)
+            dm["message_id"] = str(dm["message_id"])
             dm["attachments"] = []
             for attachment in self.conn.execute(
                     "select url, filename, attachment_id from attachments where message_id=?;", (message["message_id"],)
@@ -182,7 +183,7 @@ class ChannelDB:
                 message_dicts.append(dm)
                 del message_dicts[-1]["archival"]
         return {"messages": message_dicts, "archived_messages": archived_message_dicts, "avatars": avatar_dict,
-                "users": snapshot_dict, "channel_id": self.channel_id}
+                "users": snapshot_dict, "channel_id": str(self.channel_id)}
 
     def get_json(self):
         return json.dumps(self.get_dict())
