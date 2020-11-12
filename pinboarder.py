@@ -39,7 +39,7 @@ async def main():
         print("failed to log in with the provided token ("+token+")")
         return
     channels = client.get_dm_channel_list()
-    matching_channels = [(i, x) for i, x in enumerate(channels) if args.channel in x]
+    matching_channels = [(i, x) for i, x in enumerate([c.lower() for c in channels]) if args.channel.lower() in x]
     index = -1
     if len(matching_channels) == 0:
         print("no channels found for search term "+args.channel)
