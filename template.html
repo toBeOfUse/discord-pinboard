@@ -58,6 +58,18 @@
                 width: 40px;
                 height: 40px;
             }
+            @keyframes fade {
+                from {opacity: 1;}
+                to {opacity: 0.2;}
+            }
+            .fading {
+                animation-name: fade;
+                animation-duration: 5s;
+                animation-iteration-count: infinite;
+                animation-direction: alternate;
+                animation-timing-function: ease-out;
+                background-color: black;
+            }
             .username {
                 color: #fff;
                 font-weight: 500;
@@ -174,7 +186,18 @@
                     :message="message"
                     :userdata="getUserData(message.user_id, message.snapshot_id)"
                     :channel="channel"
-                    :key="message.message_id">
+                    :key="message.message_id"
+                    @attachment-click="modalimage=$event">
+            </discord-message>
+            <h2 v-if="archivalmessages.length">archives...</h2>
+            <discord-message
+                    v-for="message in archivalmessages"
+                    :archival="true"
+                    :message="message"
+                    :userdata="getUserData(message.user_id, message.snapshot_id)"
+                    :channel="channel"
+                    :key="message.message_id"
+                    @attachment-click="modalimage=$event">
             </discord-message>
         </div>
     </body>
@@ -187,13 +210,13 @@
     <script>
 		const splitter = new GraphemeSplitter();
 		Vue.component("discord-message", {
-		    props: ["message", "userdata", "channel"],
+		    props: ["message", "userdata", "channel", "archival"],
 		    inject: ['emojiList'],
 		    // TODO: markdown; don't assume attachments are images
             template: `
                 <div class="message">
                     <div class="avatarcontainer">
-                        <img class="avatar" :src="userdata.avatar">
+                        <img class="avatar" :class="archival ? 'fading' : ''" :src="userdata.avatar">
                     </div>
                     <div class="messagecontainer" :class="detectText(message.text) ? '' : 'justemoji'">
                         <span style="vertical-align: baseline;">
@@ -212,7 +235,7 @@
             `,
             methods: {
                 parseTimestamp(ts){
-                    const d = new Date(ts);
+                    const d = new Date(ts+"Z");
                     return d.toLocaleDateString() + " at " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 },
                 parseMessage(text){
