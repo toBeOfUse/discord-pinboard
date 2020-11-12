@@ -3,6 +3,7 @@ import aiohttp
 import os
 import asyncio
 import mimetypes
+from urllib.parse import urlparse
 import base64
 from pathlib import Path
 from pprint import PrettyPrinter, pformat, pprint
@@ -68,9 +69,9 @@ class ChannelDB:
                 avatar = await resp.read()
                 self.conn.execute("update avatars set avatar=? where avatar_url=?", (avatar, url))
 
-    # saves an attachment into ./channel_id/attachment_id/filename and returns a future for the dl
+    # saves an attachment into ./backup/channel_id/attachment_id/filename and returns a future for the dl
     def save_attachment(self, channel_id, attachment_id, filename, url):
-        path = Path.cwd() / str(channel_id) / str(attachment_id)
+        path = Path.cwd() / "backup" / str(channel_id) / str(attachment_id)
         if not path.exists():
             path.mkdir(parents=True)
         return self.save_thing(url, path / filename)
@@ -151,7 +152,7 @@ class ChannelDB:
         avatar_dicts = []
         cur.execute("select avatar_url, avatar from avatars;")
         for avatar in cur:
-            mime = mimetypes.guess_type(avatar["avatar_url"])
+            mime = mimetypes.guess_type(urlparse(avatar["avatar_url"]).path)
             avatar_dicts.append(
                 {avatar["avatar_url"]:
                      "data:" + mime[0] + ";base64," + str(base64.b64encode(avatar["avatar"]), encoding="utf-8")}
