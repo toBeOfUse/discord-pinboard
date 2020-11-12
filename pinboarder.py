@@ -67,9 +67,12 @@ async def main():
         old_pins = await client.old_pins_search(index)
         await db.add_messages(old_pins, args.backup_attachments, archival=True)
     output = db.get_json()
-    output_path = args.save_to if args.save_to else slug+".json"
+    with open("template.html") as template_file:
+        template = template_file.read()
+    html = template.replace("{{inject_dpbdata}}", output)
+    output_path = args.save_to if args.save_to else slug+".html"
     with open(output_path, "w") as output_file:
-        output_file.write(output)
+        output_file.write(html)
     await db.close()
     print("successfully created "+output_path)
 

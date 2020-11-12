@@ -1,0 +1,267 @@
+<html>
+    <head>
+        <title>Mitch and Cassie's Pins Page</title>
+        <link rel="icon" href="discord.ico">
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            @font-face{font-family:Whitney;font-weight:300;src:url(whitney300.woff) format("woff")}
+            @font-face{font-family:Whitney;font-weight:400;src:url(whitney400.woff) format("woff")}
+            @font-face{font-family:Whitney;font-weight:500;src:url(whitney500.woff) format("woff")}
+            @font-face{font-family:Whitney;font-weight:600;src:url(whitney600.woff) format("woff")}
+            @font-face{font-family:Whitney;font-weight:700;src:url(whitney700.woff) format("woff")}
+            html {
+                background-color: #36393F;
+                color: #dcddde;
+                font-family: Whitney,Helvetica Neue,Helvetica,Arial,sans-serif;
+                font-size: 1rem;
+                line-height: 1.375rem;
+                font-weight: 400;
+                margin: 25px 0 25px 0;
+            }
+            body {
+                margin: auto;
+                width: 60%;
+            }
+            @media (max-width: 600px) {
+                body {
+                    width: 100%;
+                    font-size: 0.9rem;
+                    line-height: 1rem;
+                }
+            }
+            .message {
+                display: flex;
+                padding-top: 0.5rem;
+                padding-bottom: 0.5rem;
+            }
+            .message:hover {
+                background-color: #32353B;
+            }
+            .messagecontainer {
+                width: 100%;
+            }
+            .avatarcontainer {
+                width: 72px;
+                text-align: center;
+                user-select: none;
+                flex-shrink: 0;
+            }
+            @media (max-width:600px){
+                .avatarcontainer {
+                    width: 60px;
+                }
+            }
+            .avatar {
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+            }
+            .username {
+                color: #fff;
+                font-weight: 500;
+                line-height: 1.375rem;
+            }
+            .date {
+                font-size: 0.75rem;
+                line-height: 1.375rem;
+                color: #72767d;
+                margin-left: 0.5rem;
+            }
+            .messagelink {
+                color: #00b0f4;
+                text-decoration: none;
+            }
+            .messagelink:hover {
+                text-decoration: underline;
+            }
+            .text {
+                word-break: break-word;
+            }
+            .messageimage {
+                max-height: 300px;
+                max-width: 400px;
+                padding: 2px 0 2px 0;
+                cursor: pointer;
+				display: block;
+            }
+            @media (max-width: 600px){
+                .messageimage {
+                    max-width: 70%;
+                }
+            }
+            .jump {
+                float: right;
+                user-select: none;
+                font-weight: 500;
+                line-height: 14px;
+                font-size: 11px;
+                height: 14px;
+                border-radius: 3px;
+                text-align: center;
+                padding: 2px 8px;
+                margin-right: 5px;
+                margin-top: 3px;
+                color: #b9bbbe;
+                background-color: #2f3136;
+                text-decoration: none;
+                display: none;
+            }
+            .message:hover .jump {
+                display: inline;
+            }
+            img.emoji {
+                height: 1em;
+                width: 1em;
+                margin: 0 .05em 0 .1em;
+                vertical-align: -0.1em;
+            }
+            .justemoji .text {
+                font-size: 3rem;
+                line-height: 3.375rem;
+            }
+            .justemoji img.emoji {
+                width: 3rem;
+                height: 3rem;
+                min-height: 3rem;
+            }
+            .modallink {
+                font-size: 14px;
+                font-weight: 500;
+                color: #fff;
+                text-decoration: none;
+                line-height: 30px;
+                transition: opacity .15s ease;
+                opacity: .5;
+            }
+            .modallink:hover {
+                opacity: 1;
+                text-decoration: underline;
+            }
+			#modalbackdrop {
+				position: fixed;
+				left: 0%;
+				top: 0%;
+				width: 100%;
+				height: 100%;
+				background-color: #000000aa;
+			}
+			#modalcontents {
+				position: fixed;
+				left: 50%;
+				top: 50%;
+				transform: translate(-50%, -50%);
+				margin-right: -50%;
+			}
+			#modalimage {
+				max-width: 80vw;
+				max-height: 80vh;
+			}
+        </style>
+    </head>
+    <body>
+        <div id="root">
+            <div id="modalbackdrop" v-if="modalimage" v-on:click="modalimage=''">
+				<div id="modalcontents">
+					<img id="modalimage" :src="modalimage">
+					<br>
+					<a class="modallink" target="_blank" :href="modalimage">Open Original</a>
+				</div>
+			</div>
+            <discord-message
+                    v-for="message in messages"
+                    :message="message"
+                    :userdata="getUserData(message.user_id, message.snapshot_id)"
+                    :channel="channel"
+                    :key="message.message_id">
+            </discord-message>
+        </div>
+    </body>
+	<script src="https://cdn.jsdelivr.net/npm/grapheme-splitter@1.0.4/index.min.js"></script>
+    <script src="https://twemoji.maxcdn.com/2/twemoji.min.js?12.0.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <script>
+        window.__dpbdata = {{inject_dpbdata}}
+    </script>
+    <script>
+		const splitter = new GraphemeSplitter();
+		Vue.component("discord-message", {
+		    props: ["message", "userdata", "channel"],
+		    inject: ['emojiList'],
+		    // TODO: markdown; don't assume attachments are images
+            template: `
+                <div class="message">
+                    <div class="avatarcontainer">
+                        <img class="avatar" :src="userdata.avatar">
+                    </div>
+                    <div class="messagecontainer" :class="detectText(message.text) ? '' : 'justemoji'">
+                        <span style="vertical-align: baseline;">
+                            <span class="username">{{userdata.name}}</span>
+                            <span class="date">{{parseTimestamp(message.timestamp)}}</span>
+                        </span>
+                        <a target="_blank" :href="'https://discord.com/channels/@me/'+channel+'/'+message.message_id" class="jump">Jump</a>
+                        <div class="text" v-html="parseMessage(message.contents)"></div>
+                        <img
+                            v-for="attached in message.attachments"
+                            class="messageimage"
+                            :src="attached.url"
+                            @click="$emit('attachment-click', attached.url)">
+                    </div>
+                </div>
+            `,
+            methods: {
+                parseTimestamp(ts){
+                    const d = new Date(ts);
+                    return d.toLocaleDateString() + " at " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                },
+                parseMessage(text){
+                    let formattedText = text
+                                        .replace(/\n/g ,"<br>")
+										.replace(/ {2,}/g, (match) => new Array(match.length).fill("&nbsp;").join(""))
+                                        .replace(/(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?/g, '<a class="messagelink" target="_blank" href="$&">$&</a>')
+                    return window.twemoji.parse(formattedText);
+                },
+                detectText(text){
+					if (this.emojilist && this.emojilist.size > 0){  // if the emoji list has Loaded
+						for (const c of splitter.splitGraphemes(text)) {
+							if (!this.emojilist.has(c) && !/\s/.test(c)){
+								return true;
+							}
+						}
+						return false;
+					} else {
+						return true;
+					}
+                }
+            }
+		});
+        new Vue({
+            el: "#root",
+            data: {
+                messages: [],
+                archivalmessages: [],
+                modalimage: "",
+                channel: window.__dpbdata.channel,
+				emojiList: undefined  // will be replaced with a set when it loads (in mounted())
+            },
+            provide(){
+                return {emojiList: this.emojiList};
+            },
+			mounted(){
+				fetch("https://unpkg.com/emoji.json/emoji-compact.json").then(r=>r.json().then(j=>this.emojilist = new Set(j)));
+				const debug = false;
+				this.messages = window.__dpbdata.messages;
+				this.archivalmessages = window.__dpbdata.archived_messages;
+			},
+			methods: {
+			    getUserData(user, defaultSnapshot){
+			        // can be overriden to allow for alternate snapshot selections later
+			        const snapshot = window.__dpbdata.users[user][defaultSnapshot];
+			        snapshot.avatar = window.__dpbdata.avatars[snapshot.avatar_url];
+			        return snapshot;
+			    }
+			}
+        })
+    </script>
+</html>
