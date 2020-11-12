@@ -31,6 +31,9 @@
                     line-height: 1rem;
                 }
             }
+            p {
+                margin: 0;
+            }
             .message {
                 display: flex;
                 padding-top: 0.5rem;
@@ -203,12 +206,13 @@
     </body>
 	<script src="https://cdn.jsdelivr.net/npm/grapheme-splitter@1.0.4/index.min.js"></script>
     <script src="https://twemoji.maxcdn.com/2/twemoji.min.js?12.0.0"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.0.2/markdown-it.min.js" integrity="sha512-7VN0JcGJWL+i8LXzTvbROqUSPzZIu8Fp6GWpkVwtHwrgWwY8CrbZgyHA2YpNhAASQNrYqGYoI2HusCqV+S2xnQ==" crossorigin="anonymous"></script>
     <script>
         window.__dpbdata = {{inject_dpbdata}}
     </script>
     <script>
 		const splitter = new GraphemeSplitter();
+		const md = window.markdownit({linkify: true, breaks: true});
 		Vue.component("discord-message", {
 		    props: ["message", "userdata", "channel", "archival"],
 		    inject: ['emojiList'],
@@ -239,11 +243,20 @@
                     return d.toLocaleDateString() + " at " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 },
                 parseMessage(text){
+                /*
                     let formattedText = text
                                         .replace(/\n/g ,"<br>")
 										.replace(/ {2,}/g, (match) => new Array(match.length).fill("&nbsp;").join(""))
                                         .replace(/(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?/g, '<a class="messagelink" target="_blank" href="$&">$&</a>')
-                    return window.twemoji.parse(formattedText);
+                */
+                    let formattedText = md.render(text);
+                    let pseudoElement = document.createElement('span');
+                    pseudoElement.innerHTML = formattedText;
+                    for (const a of pseudoElement.querySelectorAll("a")){
+                        a.classList.add("messagelink")
+                        a.setAttribute("target", "_blank");
+                    }
+                    return window.twemoji.parse(pseudoElement.innerHTML);
                 },
                 detectText(text){
 					if (this.emojilist && this.emojilist.size > 0){  // if the emoji list has Loaded
@@ -265,7 +278,7 @@
                 messages: [],
                 archivalmessages: [],
                 modalimage: "",
-                channel: window.__dpbdata.channel,
+                channel: window.__dpbdata.channel_id,
 				emojiList: undefined  // will be replaced with a set when it loads (in mounted())
             },
             provide(){
