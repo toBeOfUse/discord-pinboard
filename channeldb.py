@@ -163,7 +163,7 @@ class ChannelDB:
                 "data:" + mime[0] + ";base64," + str(base64.b64encode(avatar["avatar"]), encoding="utf-8")
         message_dicts = []
         archived_message_dicts = []
-        cur.execute("select message_id, contents, timestamp, snapshot_id, archival from messages;")
+        cur.execute("select message_id, contents, timestamp, snapshot_id, archival from messages order by message_id desc;")
         for message in cur:
             dm = (dict(message))
             user_id = self.conn.execute(
