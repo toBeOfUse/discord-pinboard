@@ -28,7 +28,7 @@ class ChannelDB:
         self.channel_name = channel_name
         self.channel_id = channel_id
         self.session = aiohttp.ClientSession()
-        self.conn = sqlite3.connect(channel_id + ".db")
+        self.conn = sqlite3.connect(str(channel_id) + ".db")
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript('''
         create table if not exists users (user_id integer primary key);
@@ -86,7 +86,7 @@ class ChannelDB:
                         break
                     fd.write(chunk)
 
-    async def add_messages(self, messages, save_attachments, archival=False):
+    async def add_messages(self, messages, save_attachments=True, archival=False):
         # list of futures representing asset-retrieval operations (for asyncio.gather)
         dlqueue = []
         cur = self.conn.cursor()
@@ -147,17 +147,20 @@ class ChannelDB:
         cur.execute("select user_id from users;")
         for user in cur:
             snapshots = self.conn.execute(
-                "select snapshot_id, user_id, name, avatar_url from user_snapshots where user_id=?;", (user[0],)
+                "select snapshot_id, name, avatar_url from user_snapshots where user_id=?;", (user[0],)
             ).fetchall()
-            snapshot_dict[user["user_id"]] = [dict(x) for x in snapshots]
-        avatar_dicts = []
+            snapshot_dict[str(user["user_id"])] = {}
+            for snapshot in snapshots:
+                id = snapshot["snapshot_id"]
+                meta_dict = dict(snapshot)
+                del meta_dict["snapshot_id"]
+                snapshot_dict[str(user["user_id"])][id] = meta_dict
+        avatar_dict = {}
         cur.execute("select avatar_url, avatar from avatars;")
         for avatar in cur:
             mime = mimetypes.guess_type(urlparse(avatar["avatar_url"]).path)
-            avatar_dicts.append(
-                {avatar["avatar_url"]:
-                     "data:" + mime[0] + ";base64," + str(base64.b64encode(avatar["avatar"]), encoding="utf-8")}
-            )
+            avatar_dict[avatar["avatar_url"]] = \
+                "data:" + mime[0] + ";base64," + str(base64.b64encode(avatar["avatar"]), encoding="utf-8")
         message_dicts = []
         archived_message_dicts = []
         cur.execute("select message_id, contents, timestamp, snapshot_id, archival from messages;")
@@ -166,7 +169,7 @@ class ChannelDB:
             user_id = self.conn.execute(
                 "select user_id from user_snapshots where snapshot_id=? limit 1;", (message["snapshot_id"],)
             ).fetchone()[0]
-            dm["user_id"] = user_id
+            dm["user_id"] = str(user_id)
             dm["attachments"] = []
             for attachment in self.conn.execute(
                     "select url, filename, attachment_id from attachments where message_id=?;", (message["message_id"],)
@@ -178,7 +181,7 @@ class ChannelDB:
             else:
                 message_dicts.append(dm)
                 del message_dicts[-1]["archival"]
-        return {"messages": message_dicts, "archived_messages": archived_message_dicts, "avatars": avatar_dicts,
+        return {"messages": message_dicts, "archived_messages": archived_message_dicts, "avatars": avatar_dict,
                 "users": snapshot_dict, "channel_id": self.channel_id}
 
     def get_json(self):
@@ -212,7 +215,7 @@ class ChannelDB:
 
 async def test():
     try:
-        cdb = ChannelDB("test")
+        cdb = ChannelDB("test", 111111)
         await cdb.add_messages(channeldb_test_data.simplemessages)
         await cdb.add_messages(channeldb_test_data.avatarchange)
         await cdb.add_messages(channeldb_test_data.avatarandusernamechange)
@@ -223,7 +226,7 @@ async def test():
     except Exception as e:
         print(e)
         pass
-    os.remove("test.db")
+    os.remove("111111.db")
 
 
 if __name__ == "__main__":
