@@ -65,6 +65,7 @@
                 display: block;
                 background-size: contain;
                 position: relative;
+                z-index: 1;
             }
             @keyframes fade {
                 from {opacity: 1;}
@@ -177,6 +178,7 @@
 				width: 100%;
 				height: 100%;
 				background-color: #000000aa;
+			    z-index: 1000;
 			}
 			#modalcontents {
 				position: fixed;
@@ -309,14 +311,30 @@
                 messages: window.__dpbdata.messages,
                 archivalmessages: window.__dpbdata.archived_messages,
                 preservedmessages: window.__dpbdata.preserved_messages,
-                modalimage: "",
                 channel: window.__dpbdata.channel_id,
+                modalimage: "",
+                avatars: {}
+            },
+            created() {
+                for (const avatar in window.__dpbdata.avatars){
+                    const aurl = window.__dpbdata.avatars[avatar];
+                    const aurlparts = aurl.split(",");
+                    const mimetype = aurlparts[0].split(":")[1].split(";")[0];
+                    const data = atob(aurlparts[1]);
+                    const abuffer = new ArrayBuffer(data.length);
+                    const iabuffer = new Uint8Array(abuffer);
+                    for(let i=0; i< data.length; i++) {
+                        iabuffer[i] = data.charCodeAt(i);
+                    }
+                    const blob = new Blob([abuffer], {type: mimetype});
+                    this.avatars[avatar] = URL.createObjectURL(blob);
+                }
             },
 			methods: {
 			    getUserData(user, defaultSnapshot){
 			        // can be overriden to allow for alternate snapshot selections later
 			        const snapshot = window.__dpbdata.users[user][defaultSnapshot];
-			        snapshot.avatar = window.__dpbdata.avatars[snapshot.avatar_url];
+			        snapshot.avatar = this.avatars[snapshot.avatar_url];
 			        return snapshot;
 			    }
 			}
