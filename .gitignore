@@ -3,6 +3,8 @@ token.txt
 *-journal
 test/*
 avatars/*
+backup/*
+*.woff
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

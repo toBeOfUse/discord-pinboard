@@ -1,7 +1,7 @@
 <html>
     <head>
-        <title>Mitch and Cassie's Pins Page</title>
-        <link rel="icon" href="discord.ico">
+        <title>PinsArchive</title>
+        <link rel="icon" href="https://discord.com/assets/07dca80a102d4149e9736d4b162cff6f.ico">
         <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -67,7 +67,7 @@
             }
             .fading {
                 animation-name: fade;
-                animation-duration: 5s;
+                animation-duration: 3s;
                 animation-iteration-count: infinite;
                 animation-direction: alternate;
                 animation-timing-function: ease-out;
@@ -213,16 +213,26 @@
     <script>
 		const splitter = new GraphemeSplitter();
 		const md = window.markdownit({linkify: true, breaks: true});
+		const emojiListPromise = fetch("https://unpkg.com/emoji.json/emoji-compact.json").then(r=>r.json().then(e => {
+            window.__emojilist = new Set(e);
+		}));
 		Vue.component("discord-message", {
 		    props: ["message", "userdata", "channel", "archival"],
-		    inject: ['emojiList'],
-		    // TODO: markdown; don't assume attachments are images
+		    data(){
+		        return {
+		            emojilistLoaded: false
+		        };
+		    },
+		    mounted(){
+                emojiListPromise.then(() => this.emojilistLoaded=true);
+		    },
+		    // TODO: don't assume attachments are images
             template: `
                 <div class="message">
                     <div class="avatarcontainer">
                         <img class="avatar" :class="archival ? 'fading' : ''" :src="userdata.avatar">
                     </div>
-                    <div class="messagecontainer" :class="detectText(message.text) ? '' : 'justemoji'">
+                    <div class="messagecontainer" :class="detectText(message.contents) ? '' : 'justemoji'">
                         <span style="vertical-align: baseline;">
                             <span class="username">{{userdata.name}}</span>
                             <span class="date">{{parseTimestamp(message.timestamp)}}</span>
@@ -243,13 +253,7 @@
                     return d.toLocaleDateString() + " at " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 },
                 parseMessage(text){
-                /*
-                    let formattedText = text
-                                        .replace(/\n/g ,"<br>")
-										.replace(/ {2,}/g, (match) => new Array(match.length).fill("&nbsp;").join(""))
-                                        .replace(/(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?/g, '<a class="messagelink" target="_blank" href="$&">$&</a>')
-                */
-                    let formattedText = md.render(text);
+                    let formattedText = md.render(text).replace(/ {2,}/g, (match) => new Array(match.length).fill("&nbsp;").join(""));
                     let pseudoElement = document.createElement('span');
                     pseudoElement.innerHTML = formattedText;
                     for (const a of pseudoElement.querySelectorAll("a")){
@@ -259,9 +263,9 @@
                     return window.twemoji.parse(pseudoElement.innerHTML);
                 },
                 detectText(text){
-					if (this.emojilist && this.emojilist.size > 0){  // if the emoji list has Loaded
+					if (this.emojilistLoaded){  // if the emoji list has Loaded
 						for (const c of splitter.splitGraphemes(text)) {
-							if (!this.emojilist.has(c) && !/\s/.test(c)){
+							if (!window.__emojilist.has(c) && !/\s/.test(c)){
 								return true;
 							}
 						}
@@ -279,13 +283,8 @@
                 archivalmessages: [],
                 modalimage: "",
                 channel: window.__dpbdata.channel_id,
-				emojiList: undefined  // will be replaced with a set when it loads (in mounted())
-            },
-            provide(){
-                return {emojiList: this.emojiList};
             },
 			mounted(){
-				fetch("https://unpkg.com/emoji.json/emoji-compact.json").then(r=>r.json().then(j=>this.emojilist = new Set(j)));
 				const debug = false;
 				this.messages = window.__dpbdata.messages;
 				this.archivalmessages = window.__dpbdata.archived_messages;
