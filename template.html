@@ -50,6 +50,8 @@
                 text-align: center;
                 user-select: none;
                 flex-shrink: 0;
+                display: flex;
+                justify-content: center;
             }
             @media (max-width:600px){
                 .avatarcontainer {
@@ -60,6 +62,9 @@
                 border-radius: 50%;
                 width: 40px;
                 height: 40px;
+                display: block;
+                background-size: contain;
+                position: relative;
             }
             @keyframes fade {
                 from {opacity: 1;}
@@ -72,6 +77,17 @@
                 animation-direction: alternate;
                 animation-timing-function: ease-out;
                 background-color: black;
+            }
+            .vignette::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: radial-gradient(circle, transparent 30%, black 110%);
+                background-size: contain;
+                border-radius: 50%;
             }
             .username {
                 color: #fff;
@@ -176,6 +192,7 @@
         </style>
     </head>
     <body>
+        <h1>Pins Archive</h1>
         <div id="root">
             <div id="modalbackdrop" v-if="modalimage" v-on:click="modalimage=''">
 				<div id="modalcontents">
@@ -192,10 +209,20 @@
                     :key="message.message_id"
                     @attachment-click="modalimage=$event">
             </discord-message>
-            <h2 v-if="archivalmessages.length">archives...</h2>
+            <h2 v-if="preservedmessages.length">preserved messages...</h2>
+            <discord-message
+                    v-for="message in preservedmessages"
+                    avatarclass="vignette"
+                    :message="message"
+                    :userdata="getUserData(message.user_id, message.snapshot_id)"
+                    :channel="channel"
+                    :key="message.message_id"
+                    @attachment-click="modalimage=$event">
+            </discord-message>
+            <h2 v-if="archivalmessages.length">the deep archives... detritus of the ages</h2>
             <discord-message
                     v-for="message in archivalmessages"
-                    :archival="true"
+                    avatarclass="fading"
                     :message="message"
                     :userdata="getUserData(message.user_id, message.snapshot_id)"
                     :channel="channel"
@@ -217,7 +244,7 @@
             window.__emojilist = new Set(e);
 		}));
 		Vue.component("discord-message", {
-		    props: ["message", "userdata", "channel", "archival"],
+		    props: ["message", "userdata", "channel", "avatarclass"],
 		    data(){
 		        return {
 		            emojilistLoaded: false
@@ -230,7 +257,7 @@
             template: `
                 <div class="message">
                     <div class="avatarcontainer">
-                        <img class="avatar" :class="archival ? 'fading' : ''" :src="userdata.avatar">
+                        <div class="avatar" :class="avatarclass" :style="{backgroundImage: 'url('+userdata.avatar+')'}"></div>
                     </div>
                     <div class="messagecontainer" :class="detectText(message.contents) ? '' : 'justemoji'">
                         <span style="vertical-align: baseline;">
@@ -279,16 +306,12 @@
         new Vue({
             el: "#root",
             data: {
-                messages: [],
-                archivalmessages: [],
+                messages: window.__dpbdata.messages,
+                archivalmessages: window.__dpbdata.archived_messages,
+                preservedmessages: window.__dpbdata.preserved_messages,
                 modalimage: "",
                 channel: window.__dpbdata.channel_id,
             },
-			mounted(){
-				const debug = false;
-				this.messages = window.__dpbdata.messages;
-				this.archivalmessages = window.__dpbdata.archived_messages;
-			},
 			methods: {
 			    getUserData(user, defaultSnapshot){
 			        // can be overriden to allow for alternate snapshot selections later

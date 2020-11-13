@@ -45,7 +45,7 @@ class ChannelDB:
             contents text,
             timestamp text not null,
             snapshot_id integer,
-            archival integer,
+            found_via text check(found_via in ("pinned", "provided", "deep search")) default "pinned",
             foreign key (snapshot_id) references user_snapshots (snapshot_id)
         );
         create table if not exists attachments (
@@ -86,7 +86,7 @@ class ChannelDB:
                         break
                     fd.write(chunk)
 
-    async def add_messages(self, messages, save_attachments=True, archival=False):
+    async def add_messages(self, messages, save_attachments=True):
         # list of futures representing asset-retrieval operations (for asyncio.gather)
         dlqueue = []
         cur = self.conn.cursor()
@@ -118,9 +118,9 @@ class ChannelDB:
         cur.executemany(
             # messages we already have are ignored bc their primary keys already exist, preventing their insertion
             '''insert or ignore into messages 
-                (message_id, contents, timestamp, snapshot_id, archival)
+                (message_id, contents, timestamp, snapshot_id, found_via)
                 values (?, ?, ?, ?, ?);''',
-            [(m["id"], m["text"], m["time"], snapshot_ids[m["sender_id"]], int(archival)) for m in messages]
+            [(m["id"], m["text"], m["time"], snapshot_ids[m["sender_id"]], m["found_via"]) for m in messages]
         )
         # take each message's attachment group out of its dict and then flatten the groups into a list
         attachments = [att for att in
@@ -162,8 +162,10 @@ class ChannelDB:
             avatar_dict[avatar["avatar_url"]] = \
                 "data:" + mime[0] + ";base64," + str(base64.b64encode(avatar["avatar"]), encoding="utf-8")
         message_dicts = []
+        preserved_message_dicts = []
         archived_message_dicts = []
-        cur.execute("select message_id, contents, timestamp, snapshot_id, archival from messages order by message_id desc;")
+        cur.execute(
+            "select message_id, contents, timestamp, snapshot_id, found_via from messages order by message_id desc;")
         for message in cur:
             dm = (dict(message))
             user_id = self.conn.execute(
@@ -176,13 +178,15 @@ class ChannelDB:
                     "select url, filename, attachment_id from attachments where message_id=?;", (message["message_id"],)
             ):
                 dm["attachments"].append(dict(attachment))
-            if dm["archival"]:
+            if dm["found_via"] == "deep search":
                 archived_message_dicts.append(dm)
-                del archived_message_dicts[-1]["archival"]
+            elif dm["found_via"] == "provided":
+                preserved_message_dicts.append(dm)
             else:
                 message_dicts.append(dm)
-                del message_dicts[-1]["archival"]
-        return {"messages": message_dicts, "archived_messages": archived_message_dicts, "avatars": avatar_dict,
+            del dm["found_via"]
+        return {"messages": message_dicts, "archived_messages": archived_message_dicts,
+                "preserved_messages": preserved_message_dicts, "avatars": avatar_dict,
                 "users": snapshot_dict, "channel_id": str(self.channel_id)}
 
     def get_json(self):
@@ -204,7 +208,7 @@ class ChannelDB:
             out += str_row(snapshot) + "\n"
         out += "\nmessages:\n"
         for message in self.conn.execute(
-                '''select timestamp, name, avatar_url, contents, archival from messages
+                '''select timestamp, name, avatar_url, contents, found_via from messages
                 left join user_snapshots using(snapshot_id);'''
         ):
             out += str_row(message) + "\n"
@@ -220,13 +224,14 @@ async def test():
         await cdb.add_messages(channeldb_test_data.simplemessages)
         await cdb.add_messages(channeldb_test_data.avatarchange)
         await cdb.add_messages(channeldb_test_data.avatarandusernamechange)
-        await cdb.add_messages(channeldb_test_data.oldmessages, archival=True)
+        await cdb.add_messages(channeldb_test_data.oldmessages)
+        await cdb.add_messages(channeldb_test_data.specifiedmessages)
         print(cdb.dump())
         pprint(cdb.get_dict(), width=200)
-        await cdb.close()
     except Exception as e:
-        print(e)
+        print("ERROR", repr(e))
         pass
+    await cdb.close()
     os.remove("111111.db")
 
 

@@ -37,38 +37,46 @@ class PinsClient(discord.Client):
         self.set_status("loading pins...")
         pins = await self.private_channels[channel_index].pins()
         self.set_status("processing pins...")
-        return [self.message_to_dict(m) for m in pins]
+        return [dict(self.message_to_dict(m), found_via="pinned") for m in pins]
 
-    async def old_pins_search(self, channel_index, extra_ids=()):
+    async def old_pins_search(self, channel_index, find_unpinned=False, extra_ids=()):
         found_pin_ids = set()
         extra_pin_ids = set(extra_ids)
         pins = []
-        extra_pins = []
         scanned = 0
-        found = 0
+        found_unpinned = 0
+        found_provided = 0
+
+        def scan_status():
+            status = "scanned " + str(scanned) + " messages"
+            if found_provided > 0:
+                status += ", found " + str(found_provided) + " message(s) from provided ids"
+            if found_unpinned > 0:
+                status += ", found " + str(found_unpinned) + " formerly pinned message(s)"
+            self.set_status(status)
+
         async for message in self.private_channels[channel_index].history(limit=None):
             scanned += 1
-            if message.type == discord.MessageType.pins_add:
+            if message.type == discord.MessageType.pins_add and find_unpinned:
                 found_pin_ids.add(message.reference.message_id)
             elif message.type == discord.MessageType.default and message.id in extra_pin_ids:
-                pins.append(self.message_to_dict(message))
-            elif message.type == discord.MessageType.default and message.id in found_pin_ids:
+                pins.append(dict(self.message_to_dict(message), found_via="provided"))
+                found_provided += 1
+                if found_provided == len(extra_ids) and not find_unpinned:
+                    break
+            elif message.type == discord.MessageType.default and message.id in found_pin_ids and find_unpinned:
                 if not message.pinned:
-                    found += 1
-                    pins.append(self.message_to_dict(message))
+                    found_unpinned += 1
+                    pins.append(dict(self.message_to_dict(message), found_via="deep search"))
                 else:
                     found_pin_ids.remove(message.id)
             if scanned % 1000 == 0:
-                self.set_status("scanned "+str(scanned)+" messages, found "+str(found)+" formerly pinned message(s)")
-        self.set_status("scanned " + str(scanned) + " messages, found " + str(found) + " formerly pinned message(s)")
-        missed = len(found_pin_ids) - found
+                scan_status()
+        scan_status()
+        missed = len(found_pin_ids) - found_unpinned
         if missed > 0:
             self.set_status(str(missed)+" formerly pinned message(s) not found; probably deleted")
-        if not extra_ids:
-            return pins
-        else:
-            self.set_status(str(len(extra_pins))+" extra messages found out of "+str(len(extra_ids))+" requested")
-            return pins, extra_pins
+        return pins
 
 
 async def test():
