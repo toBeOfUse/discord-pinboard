@@ -24,7 +24,11 @@ parser.add_argument("--backup_attachments", "-b", help="backup any attachments i
 parser.add_argument("--deep_scan", "-d", help="scans channel for messages that were pinned but have been unpinned, for"
                                              " the 'archives' section of the showcase. may take a fairly long time for"
                                              " channels with a lot of messages", action="store_true")
+# todo: make use_cache exclusive to deep_scan and backup
+parser.add_argument("--use_cache", "-u", help="debug option for just recreating the html page from already fetched"
+                                              "data", action="store_true")
 async def main():
+    # todo: don't even login if args.use_cache is set
     args = parser.parse_args()
     if Path(args.token).exists():
         with open(args.token) as token_file:
@@ -60,12 +64,13 @@ async def main():
         print("found channel "+matching_channels[0][1])
         index = matching_channels[0][0]
     slug = slugify.slugify(channels[index])
-    pins = await client.get_pins(index)
     db = channeldb.ChannelDB(slug, client.get_dm_channel_id(index))
-    await db.add_messages(pins, args.backup_attachments)
-    if args.deep_scan:
-        old_pins = await client.old_pins_search(index)
-        await db.add_messages(old_pins, args.backup_attachments, archival=True)
+    if not args.use_cache:
+        pins = await client.get_pins(index)
+        await db.add_messages(pins, args.backup_attachments)
+        if args.deep_scan:
+            old_pins = await client.old_pins_search(index)
+            await db.add_messages(old_pins, args.backup_attachments, archival=True)
     output = db.get_json()
     with open("template.html") as template_file:
         template = template_file.read()
