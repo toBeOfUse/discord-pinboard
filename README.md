@@ -77,4 +77,4 @@ python pinboarder.py asdlSLKFDKSLsdlkfsjlk bob -b -s bob.html -d -p [32948234843
  - The ability to scan server channels as well as DM channels
  - Using backed-up attachments as fallbacks in the showcase HTML file if the file is absent from the Discord CDN
  - Better directory structure for storing output files
- 
+ - Let users choose which among the pins, preserved pins, and archived pins sections they want to be displayed in the output file
