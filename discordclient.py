@@ -59,8 +59,7 @@ class PinsClient(discord.Client):
             scanned += 1
             if message.type == discord.MessageType.pins_add and find_unpinned:
                 found_pin_ids.add(message.reference.message_id)
-            elif (message.type == discord.MessageType.default or message.type==9) \
-				and message.id in extra_pin_ids:
+            elif message.type == discord.MessageType.default and message.id in extra_pin_ids:
                 pins.append(dict(self.message_to_dict(message), found_via="provided"))
                 found_provided += 1
                 if found_provided == len(extra_ids) and not find_unpinned:
