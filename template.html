@@ -269,10 +269,15 @@
                         <a target="_blank" :href="'https://discord.com/channels/@me/'+channel+'/'+message.message_id" class="jump">Jump</a>
                         <div class="text" v-html="parseMessage(message.contents)"></div>
                         <img
-                            v-for="attached in message.attachments"
+                            v-for="attached in message.attachments.filter(a=>/\.png$|\.jpg$/.test(a.url))"
                             class="messageimage"
                             :src="attached.url"
                             @click="$emit('attachment-click', attached.url)">
+						<video
+							controls
+							v-for="attached in message.attachments.filter(a=>/\.mp4$/.test(a.url))"
+							class="messageimage"
+							:src="attached.url">
                     </div>
                 </div>
             `,
@@ -323,7 +328,7 @@
                     const data = atob(aurlparts[1]);
                     const abuffer = new ArrayBuffer(data.length);
                     const iabuffer = new Uint8Array(abuffer);
-                    for(let i=0; i< data.length; i++) {
+                    for(let i=0; i < data.length; i++) {
                         iabuffer[i] = data.charCodeAt(i);
                     }
                     const blob = new Blob([abuffer], {type: mimetype});
