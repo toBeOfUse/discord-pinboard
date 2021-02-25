@@ -3,7 +3,7 @@
 Discord allows users to "pin" messages to a small showcase in text chat channels, but limits the number of allowed pinned messages to 50. This tool enhances the "pins" functionality by scanning a DM channel's pins an unlimited number of times to create and maintain an HTML file that acts as a showcase for all of the pinned messages ever picked up by the scan; additionally, it records the names and avatars of users at the time of the scan and preserves them in the record, it can back up attachments shown in the pinned messages in case they're ever deleted, and can conduct a full-channel search to pick up messages that were pinned at any point in the past to display a fuller channel history.
 
 ## Feature by feature:
- - Logs in to Discord using your personal authentication token, which is a very convenient login method unfortunately forbidden by the Discord terms of use but harmless at least for the moment. OAuth2 login coming soon. [Learn how to obtain your token here.](https://discordhelp.net/discord-token)
+ - Logs in to Discord using your personal authentication token, which is a little inconvenient but harmless at least for the moment. OAuth2 login coming soon. [Learn how to obtain your token here.](https://discordhelp.net/discord-token)
   - Stores each scanned channel's information in a SQLite3 database, which can be moved from computer to computer just by copying and pasting a .db file
   - Generates a single HTML showcase file that contains all information needed to display your pins except the attachments, which are fetched from the Discord CDN for display
   - Can optionally back up all relevant attachment files
